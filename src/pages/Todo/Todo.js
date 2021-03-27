@@ -1,5 +1,14 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Card from "../../components/Card/Card";
+import {
+  addTodos,
+  getUserId,
+  signOut,
+  deleteTodo,
+  updateFinished,
+  updateStarted,
+} from "../../utils/firebaseUtils";
+import { firestore } from "../../utils/firebase";
 
 function Todo() {
   // State to hold the new todo input.
@@ -7,43 +16,50 @@ function Todo() {
   // State to hold all the todos.
   const [todos, setTodos] = useState([]);
 
+  // Get user id
+  const userId = getUserId();
+
+  // Effect hook to get todos
+  useEffect(() => {
+    getTodos();
+  }, []);
+
+  // Get todos
+  async function getTodos() {
+    const todoDocRef = await firestore()
+      .collection("USERS")
+      .doc(userId)
+      .collection("TODOS")
+      .orderBy("timeStamp", "desc")
+      .get();
+    let todos = [];
+    todoDocRef.docs.map((doc) => {
+      todos.push(doc.data());
+    });
+    setTodos(todos);
+  }
+
   // Function to handle input submit
   const handleSubmit = (e) => {
     // prevent the page from reloading
     e.preventDefault();
-    // New todo object
-    const newTodo = {
-      todo: input,
-      started: false,
-      finished: false,
-    };
-    // Store or log the new todo
-    const updatedTodos = [...todos, newTodo];
-    setTodos(updatedTodos);
-    // Clear the input container
-    setInput("");
-  };
-  console.log(todos);
-
-  // Update Start Status
-  const handleUpdateStart = (index) => {
-    // Copy the existing Todos list in a new variable
-    let updatedTodos = [...todos];
-    // Update the started value
-    updatedTodos[index].started = true;
-    setTodos(updatedTodos);
+    if (input) {
+      // New todo object
+      const newTodo = {
+        todo: input,
+        started: false,
+        finished: false,
+      };
+      // Add todo to firebase
+      addTodos(newTodo, userId);
+      // Clear the input container
+      setInput("");
+    } else {
+      alert("Cannot create an Empty todo.");
+    }
   };
 
-  // Update Finished Status
-  const handleUpdateFinished = (index) => {
-    // Copy the todos list in a new variable
-    let updatedTodos = [...todos];
-    // Update the finished value in the todo
-    updatedTodos[index].finished = true;
-    setTodos(updatedTodos);
-  };
-
-  // function to render the status of Todo.
+  // Function to render the status of Todo.
   const renderStatus = (hasStarted, hasFinished, index) => {
     // If the user has finished the task
     if (hasFinished) {
@@ -54,7 +70,9 @@ function Todo() {
       return (
         <div>
           <p>In Progress</p>
-          <button onClick={() => handleUpdateFinished(index)}>Finished</button>
+          <button onClick={() => updateFinished(index, userId)}>
+            Finished
+          </button>
         </div>
       );
     }
@@ -63,20 +81,10 @@ function Todo() {
       return (
         <div>
           <p>Not yet Started</p>
-          <button onClick={() => handleUpdateStart(index)}>Start</button>
+          <button onClick={() => updateStarted(index, userId)}>Start</button>
         </div>
       );
     }
-  };
-
-  // function to delete todos
-  const deleteTodo = (index) => {
-    // Copy the existing todos list into a temporary variable
-    const tempTodos = [...todos];
-    // Remove the todo
-    tempTodos.splice(index, 1);
-    // Set the new todo list
-    setTodos(tempTodos);
   };
 
   // Function to map the todos state to card component
@@ -86,8 +94,8 @@ function Todo() {
         todo={value}
         key={index}
         index={index}
-        renderStatus={renderStatus(value.started, value.finished, index)}
-        deleteTodo={() => deleteTodo(index)}
+        renderStatus={renderStatus(value.started, value.finished, value.todoId)}
+        deleteTodo={() => deleteTodo(value.todoId, userId)}
       />
     ));
   };
@@ -107,6 +115,7 @@ function Todo() {
         />
         <input type="submit" value="Post" />
       </form>
+      <button onClick={signOut}>Sign Out</button>
       {mapTodos()}
     </div>
   );
