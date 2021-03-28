@@ -1,11 +1,44 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Card from "../../components/Card/Card";
+import {
+  handleSignOut,
+  addTodo,
+  getUserID,
+  deleteTodo,
+  handleUpdateFinished,
+  handleUpdateStart,
+} from "../../utils/firebaseUtils";
+import { firestore } from "../../utils/firebase";
 
 function Todo() {
   // State to hold the new todo input.
   const [input, setInput] = useState("");
   // State to hold all the todos.
   const [todos, setTodos] = useState([]);
+
+  // Constant to hold user id
+  const uid = getUserID();
+
+  useEffect(() => {
+    getTodoData();
+  });
+
+  // Get todo data from firestore
+  async function getTodoData() {
+    const todoRef = await firestore()
+      .collection("USERS")
+      .doc(uid)
+      .collection("TODO")
+      .orderBy("createdAt", "desc")
+      .get();
+    // Temporary list to store data
+    let TODO = [];
+    todoRef.docs.map((doc) => {
+      TODO.push(doc.data());
+    });
+    // Add all the todos to our todo state.
+    setTodos(TODO);
+  }
 
   // Function to handle input submit
   const handleSubmit = (e) => {
@@ -17,34 +50,14 @@ function Todo() {
       started: false,
       finished: false,
     };
-    // Store or log the new todo
-    const updatedTodos = [...todos, newTodo];
-    setTodos(updatedTodos);
+    // Add the todo to firestore
+    addTodo(newTodo, uid);
     // Clear the input container
     setInput("");
   };
-  console.log(todos);
-
-  // Update Start Status
-  const handleUpdateStart = (index) => {
-    // Copy the existing Todos list in a new variable
-    let updatedTodos = [...todos];
-    // Update the started value
-    updatedTodos[index].started = true;
-    setTodos(updatedTodos);
-  };
-
-  // Update Finished Status
-  const handleUpdateFinished = (index) => {
-    // Copy the todos list in a new variable
-    let updatedTodos = [...todos];
-    // Update the finished value in the todo
-    updatedTodos[index].finished = true;
-    setTodos(updatedTodos);
-  };
 
   // function to render the status of Todo.
-  const renderStatus = (hasStarted, hasFinished, index) => {
+  const renderStatus = (hasStarted, hasFinished, todoId) => {
     // If the user has finished the task
     if (hasFinished) {
       return <p>Finished</p>;
@@ -54,7 +67,9 @@ function Todo() {
       return (
         <div>
           <p>In Progress</p>
-          <button onClick={() => handleUpdateFinished(index)}>Finished</button>
+          <button onClick={() => handleUpdateFinished(todoId, uid)}>
+            Finished
+          </button>
         </div>
       );
     }
@@ -63,20 +78,10 @@ function Todo() {
       return (
         <div>
           <p>Not yet Started</p>
-          <button onClick={() => handleUpdateStart(index)}>Start</button>
+          <button onClick={() => handleUpdateStart(todoId, uid)}>Start</button>
         </div>
       );
     }
-  };
-
-  // function to delete todos
-  const deleteTodo = (index) => {
-    // Copy the existing todos list into a temporary variable
-    const tempTodos = [...todos];
-    // Remove the todo
-    tempTodos.splice(index, 1);
-    // Set the new todo list
-    setTodos(tempTodos);
   };
 
   // Function to map the todos state to card component
@@ -86,8 +91,8 @@ function Todo() {
         todo={value}
         key={index}
         index={index}
-        renderStatus={renderStatus(value.started, value.finished, index)}
-        deleteTodo={() => deleteTodo(index)}
+        renderStatus={renderStatus(value.started, value.finished, value.todoId)}
+        deleteTodo={() => deleteTodo(value.todoId, uid)}
       />
     ));
   };
@@ -107,6 +112,7 @@ function Todo() {
         />
         <input type="submit" value="Post" />
       </form>
+      <button onClick={handleSignOut}>Sign Out</button>
       {mapTodos()}
     </div>
   );
